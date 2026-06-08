@@ -1,0 +1,3 @@
+# local tooling / preview config — not needed for the deployed site
+.claude/
+.idea/

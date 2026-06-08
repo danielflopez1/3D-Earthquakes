@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>3D Earthquake Visualizer — USGS M5+ last 5 years</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div id="info">
+  <div><b>3D Earthquake Visualizer</b></div>
+  <div id="meta">loading USGS feed…</div>
+  <div id="status"></div>
+  <div style="margin-top:6px; opacity:0.8;">drag to rotate · scroll to zoom · hover a quake</div>
+</div>
+
+<div id="legend">
+  sphere size = magnitude · depth = distance below surface · quake color = recency (red→green) · lines = local sequence (blue = recent → purple = older) · click a quake for its cross-section
+</div>
+
+<div id="time-panel">
+  <div class="time-head">Time window &nbsp;<span id="time-range">—</span></div>
+  <div class="slider-row">
+    <span>From</span>
+    <input id="from-slider" type="range" min="0" max="1000" value="0" step="1" />
+    <span id="from-val" style="width:78px;">—</span>
+  </div>
+  <div class="slider-row">
+    <span>To</span>
+    <input id="to-slider" type="range" min="0" max="1000" value="1000" step="1" />
+    <span id="to-val" style="width:78px;">—</span>
+  </div>
+  <div class="play-row">
+    <button id="play-btn" class="btn">▶ Play</button>
+    <span style="opacity:0.7;">speed</span>
+    <input id="speed-slider" type="range" min="1" max="10" value="5" step="1" />
+  </div>
+</div>
+
+<div id="opacity-panel">
+  <div class="slider-row">
+    <span>Globe</span>
+    <input id="opacity-slider" type="range" min="0" max="100" value="78" step="1" />
+    <span id="opacity-val">78%</span>
+  </div>
+  <div class="slider-row">
+    <span>Quakes Size</span>
+    <input id="size-slider" type="range" min="1" max="100" value="50" step="1" />
+    <span id="size-val">50</span>
+  </div>
+  <div class="slider-row">
+    <span>Angle</span>
+    <input id="orbit-slider" type="range" min="-180" max="180" value="0" step="1" />
+    <span id="orbit-val" style="width:auto;opacity:0.7;">double-click to focus</span>
+  </div>
+  <label class="slider-row" style="cursor:pointer;">
+    <input id="depth-toggle" type="checkbox" checked />
+    <span style="width:auto;">Depth lines</span>
+  </label>
+  <label class="slider-row" style="cursor:pointer;">
+    <input id="mainshock-toggle" type="checkbox" />
+    <span style="width:auto;">Mainshock focus</span>
+  </label>
+  <label class="slider-row" style="cursor:pointer;">
+    <input id="arrow-toggle" type="checkbox" />
+    <span style="width:auto;">Direction arrows</span>
+  </label>
+</div>
+
+<div id="detail">
+  <span class="close" id="detail-close">✕</span>
+  <div id="detail-body"></div>
+  <canvas id="xsection" width="276" height="150"></canvas>
+  <div id="xsection-cap">cluster cross-section · depth vs. along-strike distance</div>
+</div>
+
+<div id="tooltip"></div>
+<div id="loading">Loading earthquakes…</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
