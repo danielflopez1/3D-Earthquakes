@@ -73,7 +73,8 @@ html, body { margin: 0; height: 100%; background: #05070d; color: #d6e1ff; font-
 #detail {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
   padding: 10px 12px; background: rgba(10,16,28,0.94); border: 1px solid #2a4070;
-  border-radius: 8px; font-size: 12px; display: none; max-width: 300px;
+  border-radius: 8px; font-size: 12px; display: none; width: min(300px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box;
 }
 #detail b { color: #8fb6ff; }
 #detail .close {
@@ -84,3 +85,27 @@ html, body { margin: 0; height: 100%; background: #05070d; color: #d6e1ff; font-
 #xsection, #aftershock { display: block; margin-top: 8px; border: 1px solid #1f3050; border-radius: 4px; background: #070b14; }
 #xsection-cap { opacity: 0.75; margin-top: 4px; font-size: 11px; }
 #forecast-text { font-size: 12px; }
+#prediction-timeline { margin-top: 8px; font-size: 11px; }
+#prediction-timeline-label { color: #cfe0ff; margin-bottom: 4px; }
+#prediction-single-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; cursor: pointer; color: #9fb3d9; }
+#prediction-slider { width: 100%; }
+
+@media (max-width: 640px) {
+  #detail {
+    top: auto;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    width: auto;
+    max-height: 42vh;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  #forecast-text { font-size: 11px; }
+  #prediction-timeline { margin-top: 6px; font-size: 10px; }
+  #prediction-timeline-label { margin-bottom: 3px; }
+  #prediction-single-row { margin-bottom: 2px; }
+  #xsection, #aftershock { width: 100%; height: auto; }
+}

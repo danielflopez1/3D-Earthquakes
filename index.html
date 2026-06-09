@@ -100,6 +100,14 @@
   <div id="xsection-cap">cluster cross-section · depth vs. along-strike distance · faint bars = location uncertainty</div>
   <div id="forecast" style="display:none;">
     <div id="forecast-text" style="margin-top:8px;"></div>
+    <div id="prediction-timeline" style="display:none;">
+      <div id="prediction-timeline-label"></div>
+      <label id="prediction-single-row">
+        <input id="prediction-single-toggle" type="checkbox" />
+        <span>Show one prediction</span>
+      </label>
+      <input id="prediction-slider" type="range" min="1" max="1" value="1" step="1" />
+    </div>
     <canvas id="aftershock" width="276" height="120"></canvas>
     <div id="aftershock-cap" style="opacity:0.75; margin-top:4px; font-size:11px;">aftershock rate · Omori–Utsu fit &amp; 7-day forecast</div>
   </div>

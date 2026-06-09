@@ -7,7 +7,7 @@ import { timeColor } from './colors.js';
 import { state } from './state.js';
 import { fitOmori, drawAftershock } from './forecast.js';
 import { startWavefront } from './wavefront.js';
-import { showSelection, clearSelection, getGhostPoints, getGhostData } from './selectionLayer.js';
+import { showSelection, clearSelection, getGhostPoints, getGhostData, getGhostCount, selectGhostPrediction, setSinglePredictionMode } from './selectionLayer.js';
 
 const ray = new THREE.Raycaster();
 ray.params.Mesh = { threshold: 0 };
@@ -93,6 +93,11 @@ function fmtUtc(ms) {
   return new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
 }
 
+function fmtPredUtc(days) {
+  if (!isFinite(days) || !state.tMax) return 'date n/a';
+  return fmtUtc(state.tMax + days * 86400000) + ' UTC';
+}
+
 // Human-friendly duration for the "when" forecast (hours / days / months).
 function fmtDur(days) {
   if (!isFinite(days)) return 'n/a';
@@ -144,6 +149,47 @@ function fmt24hTimes(fit) {
   return more ? `${times.join(', ')} +${more} more` : times.join(', ');
 }
 
+function updatePredictionTimeline(index) {
+  const slider = document.getElementById('prediction-slider');
+  const label = document.getElementById('prediction-timeline-label');
+  const count = getGhostCount();
+  const i = Math.max(0, Math.min(count - 1, index));
+  const g = getGhostData(i);
+  if (!g) return;
+  slider.value = String(i + 1);
+  selectGhostPrediction(i);
+  label.innerHTML =
+    `<b>${i + 1}/${count}</b> · ${fmtPredUtc(g.days)}<br>` +
+    `in ~${fmtDur(g.days)} · M${g.mag.toFixed(1)} · ${g.depth.toFixed(0)} km · ~${g.intensity.text}`;
+}
+
+function showPredictionTimeline() {
+  const box = document.getElementById('prediction-timeline');
+  const slider = document.getElementById('prediction-slider');
+  const single = document.getElementById('prediction-single-toggle');
+  const count = getGhostCount();
+  if (!box || !slider || count < 1) {
+    if (box) box.style.display = 'none';
+    selectGhostPrediction(null);
+    setSinglePredictionMode(false);
+    return;
+  }
+  box.style.display = 'block';
+  slider.min = '1';
+  slider.max = String(count);
+  slider.step = '1';
+  slider.oninput = () => updatePredictionTimeline(+slider.value - 1);
+  if (single) {
+    single.checked = false;
+    setSinglePredictionMode(false);
+    single.onchange = () => {
+      setSinglePredictionMode(single.checked);
+      updatePredictionTimeline(+slider.value - 1);
+    };
+  }
+  updatePredictionTimeline(0);
+}
+
 function showDetail(detailEl, detailBody, xsection, q, cluster, isMainshock) {
   detailEl.style.display = 'block';
   // Fit the Omori model once and drive both the forecast panel and the 3D
@@ -186,6 +232,7 @@ function showForecast(fit, compact = false) {
     txt.innerHTML = `<span style="opacity:.7">forecast:</span> not enough recent sequence data`;
     canvas.style.display = 'none';
     cap.style.display = 'none';
+    showPredictionTimeline();
     return;
   }
   fc.style.display = 'block';
@@ -199,12 +246,13 @@ function showForecast(fit, compact = false) {
   if (compact) {
     txt.innerHTML =
       `<span style="opacity:.7">next:</span> M3+ in ~<b>${fmtDur(fit.tau)}</b><br>` +
-      `<span style="opacity:.7">24h predicted times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
-      `<span style="opacity:.7">how likely:</span> ` +
-      `<b>${pct(fit.p1)}%</b> / ${fmtCount(fit.f1)} in 24h · ` +
-      `<b>${pct(fit.p7)}%</b> / ${fmtCount(fit.f7)} in 7d · ` +
-      `<b>${pct(fit.p30)}%</b> / ${fmtCount(fit.f30)} in 30d ` +
+      `<span style="opacity:.7">24h times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
+      `<span style="opacity:.7">odds/count:</span> ` +
+      `24h <b>${pct(fit.p1)}%</b>/${fmtCount(fit.f1)} · ` +
+      `7d <b>${pct(fit.p7)}%</b>/${fmtCount(fit.f7)} · ` +
+      `30d <b>${pct(fit.p30)}%</b>/${fmtCount(fit.f30)} ` +
       `<span style="opacity:.6">(≥1 more M3+)</span>`;
+    showPredictionTimeline();
     return;
   }
   txt.innerHTML =
@@ -220,6 +268,7 @@ function showForecast(fit, compact = false) {
     `<span style="opacity:.6">from ${intensity.n} ${intensitySource} near epicentral area</span><br>` +
     `<span style="opacity:.7">where:</span> within ~<b>${w.dist90.toFixed(0)} km</b> of the epicenter · ` +
     `${w.trend}-trending · ${w.depthMin.toFixed(0)}–${w.depthMax.toFixed(0)} km deep`;
+  showPredictionTimeline();
   drawAftershock(canvas, fit);
 }
 

@@ -27,6 +27,8 @@ scene.add(group);
 let ghostSprite = null;
 let ghostPoints = null;   // THREE.Points of projected aftershocks
 let ghostData = [];       // parallel metadata: { place, days, depth }
+let selectedGhost = -1;
+let singleGhostMode = false;
 let ellipsoid = null;     // wireframe uncertainty volume
 let zoneRing = null;      // oriented footprint ellipse
 
@@ -60,6 +62,8 @@ export function clearSelection() {
   }
   ghostPoints = ellipsoid = zoneRing = null;
   ghostData = [];
+  selectedGhost = -1;
+  singleGhostMode = false;
 }
 
 // Error ellipsoid at the hypocenter, drawn as three orthogonal rings (a clean
@@ -108,7 +112,7 @@ function buildGhosts(cluster, fit, catalog) {
   ghostData = [];
   samples.forEach((s, i) => {
     buckets[s.mag >= 5 ? 2 : (s.mag >= 4 ? 1 : 0)].push({ s, i });
-    ghostData.push({ place: s.place, days: s.days, depth: s.depth, mag: s.mag, intensity: s.intensity });
+    ghostData.push({ place: s.place, days: s.days, depth: s.depth, mag: s.mag, intensity: s.intensity, lat: s.lat, lon: s.lon });
   });
   const root = new THREE.Group();
   [0.011, 0.016, 0.024].forEach((size, bi) => {
@@ -137,6 +141,7 @@ function buildGhosts(cluster, fit, catalog) {
     });
     const points = new THREE.Points(geo, mat);
     points.userData.ghostIndices = bucket.map(x => x.i);
+    points.userData.originalPosition = position.slice();
     root.add(points);
   });
   return root;
@@ -188,3 +193,41 @@ export function showSelection(quake, cluster, fit, catalog) {
 
 export function getGhostPoints() { return ghostPoints; }
 export function getGhostData(i) { return ghostData[i]; }
+export function getGhostCount() { return ghostData.length; }
+
+function applySingleGhostVisibility() {
+  if (!ghostPoints) return;
+  ghostPoints.visible = true;
+  ghostPoints.children.forEach(points => {
+    const pos = points.geometry.getAttribute('position');
+    const original = points.userData.originalPosition;
+    const indices = points.userData.ghostIndices || [];
+    let hasSelected = false;
+    for (let j = 0; j < indices.length; j++) {
+      const show = !singleGhostMode || indices[j] === selectedGhost;
+      if (show && indices[j] === selectedGhost) hasSelected = true;
+      const src = show ? original : null;
+      pos.array[j * 3] = src ? src[j * 3] : 9999;
+      pos.array[j * 3 + 1] = src ? src[j * 3 + 1] : 9999;
+      pos.array[j * 3 + 2] = src ? src[j * 3 + 2] : 9999;
+    }
+    points.visible = !singleGhostMode || hasSelected;
+    pos.needsUpdate = true;
+  });
+}
+
+export function setSinglePredictionMode(v) {
+  singleGhostMode = !!v;
+  applySingleGhostVisibility();
+}
+
+export function selectGhostPrediction(i) {
+  const g = ghostData[i];
+  if (!g) {
+    selectedGhost = -1;
+    applySingleGhostVisibility();
+    return;
+  }
+  selectedGhost = i;
+  applySingleGhostVisibility();
+}
