@@ -9,6 +9,7 @@
 import { gcDistKm } from './geo.js';
 
 const DAY = 86400000;
+const MONTE_CARLO_RUNS = 20;
 
 const MMI_ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 const forecastModels = [];
@@ -44,6 +45,26 @@ export async function loadForecastModel() {
 
 function pct(sorted, f) {
   return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))] : 0;
+}
+
+function hashString(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function seededRandom(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6D2B79F5;
+    let x = t;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 export function estimateIntensity(mag, depth) {
@@ -105,10 +126,10 @@ function aftershockZone(events, main) {
 }
 
 // Standard normal via Box–Muller — for spatial jitter of projected aftershocks.
-function gauss() {
+function gauss(rng = Math.random) {
   let u = 0, v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
@@ -118,7 +139,7 @@ function gauss() {
 //   • place — bootstrapped from where the real aftershocks fell (pick one, jitter
 //     it by a few km), so the synthetic events sit on the actual rupture, not in
 //     a fabricated blob. These are illustrative scenarios, not specific predictions.
-export function sampleAftershocks(cluster, fit, count) {
+export function sampleAftershocks(cluster, fit, count, rng = Math.random) {
   if (!fit || !fit.ok) return [];
   const triggerCount = triggerVisualCount(cluster, fit);
   const sampleCount = Math.min(count, Math.ceil(Math.max(fit.f30 * 12, triggerCount)));
@@ -140,14 +161,14 @@ export function sampleAftershocks(cluster, fit, count) {
   const cosL = Math.cos(main.lat * Math.PI / 180);
   const out = [];
   for (let i = 0; i < sampleCount; i++) {
-    const t = invTime(Math.random());     // days since mainshock
+    const t = invTime(rng());             // days since mainshock
     const days = Math.max(0, t - T);       // days from catalog-current "now"
-    const parent = after[(Math.random() * after.length) | 0];
+    const parent = after[(rng() * after.length) | 0];
     const jit = (parent.hErr || 5) * 0.6;  // km
     const intensity = estimateIntensity(parent.mag, Math.max(1, parent.depth));
     out.push({
-      lat: parent.lat + (gauss() * jit) / 111.32,
-      lon: parent.lon + (gauss() * jit) / (111.32 * cosL),
+      lat: parent.lat + (gauss(rng) * jit) / 111.32,
+      lon: parent.lon + (gauss(rng) * jit) / (111.32 * cosL),
       depth: Math.max(0, parent.depth),
       mag: parent.mag,
       intensity,
@@ -211,19 +232,8 @@ function nearbyModelCells(cluster) {
   return cells.slice(0, 160);
 }
 
-function weightedPick(items) {
-  let total = 0;
-  for (const item of items) total += item.weight;
-  let r = Math.random() * total;
-  for (const item of items) {
-    r -= item.weight;
-    if (r <= 0) return item;
-  }
-  return items[items.length - 1];
-}
-
-export function sampleCatalogInformedAftershocks(cluster, fit, count, catalog) {
-  const base = sampleAftershocks(cluster, fit, count);
+function sampleCatalogInformedScenario(cluster, fit, count, catalog, rng) {
+  const base = sampleAftershocks(cluster, fit, count, rng);
   if (!base.length) return base;
 
   const main = cluster.mainshock;
@@ -235,25 +245,25 @@ export function sampleCatalogInformedAftershocks(cluster, fit, count, catalog) {
   const cosL = Math.cos(main.lat * Math.PI / 180);
   const combined = after.concat(analogs);
   const mags = combined.map(q => q.mag).sort((a, b) => a - b);
-  const magFromDistribution = () => mags.length ? pct(mags, Math.pow(Math.random(), 1.8)) : (main.mag || 3);
+  const magFromDistribution = () => mags.length ? pct(mags, Math.pow(rng(), 1.8)) : (main.mag || 3);
 
   for (const s of base) {
-    if (modelCells.length && Math.random() < 0.45) {
-      const pickedModel = weightedPick(modelCells);
+    if (modelCells.length && rng() < 0.45) {
+      const pickedModel = weightedPick(modelCells, rng);
       const picked = pickedModel.cell;
       const jitterDeg = (picked.cellDeg || 4) * 0.35;
-      s.lat = picked.lat + gauss() * jitterDeg;
-      s.lon = picked.lon + gauss() * jitterDeg / Math.max(0.2, Math.cos(picked.lat * Math.PI / 180));
-      s.depth = Math.max(0, Math.random() < 0.75 ? picked.depth50 : picked.depth90);
+      s.lat = picked.lat + gauss(rng) * jitterDeg;
+      s.lon = picked.lon + gauss(rng) * jitterDeg / Math.max(0.2, Math.cos(picked.lat * Math.PI / 180));
+      s.depth = Math.max(0, rng() < 0.75 ? picked.depth50 : picked.depth90);
       s.place = `${pickedModel.source} model-favored regional cell`;
-      s.mag = picked.mag50 + Math.random() * Math.max(0, picked.mag90 - picked.mag50);
-    } else if (analogs.length && Math.random() < 0.35) {
-      const parent = analogs[(Math.random() * analogs.length) | 0];
+      s.mag = picked.mag50 + rng() * Math.max(0, picked.mag90 - picked.mag50);
+    } else if (analogs.length && rng() < 0.35) {
+      const parent = analogs[(rng() * analogs.length) | 0];
       const dist = gcDistKm(main, parent);
       const pull = Math.min(1, 80 / Math.max(1, dist));
       const jit = (parent.hErr || 8) * 0.8;
-      s.lat = main.lat + (parent.lat - main.lat) * pull + (gauss() * jit) / 111.32;
-      s.lon = main.lon + (parent.lon - main.lon) * pull + (gauss() * jit) / (111.32 * cosL);
+      s.lat = main.lat + (parent.lat - main.lat) * pull + (gauss(rng) * jit) / 111.32;
+      s.lon = main.lon + (parent.lon - main.lon) * pull + (gauss(rng) * jit) / (111.32 * cosL);
       s.depth = Math.max(0, parent.depth);
       s.place = parent.place;
       s.mag = magFromDistribution();
@@ -263,6 +273,66 @@ export function sampleCatalogInformedAftershocks(cluster, fit, count, catalog) {
     s.intensity = estimateIntensity(s.mag, Math.max(1, s.depth));
   }
   return base.sort((a, b) => a.days - b.days);
+}
+
+function weightedPick(items, rng = Math.random) {
+  let total = 0;
+  for (const item of items) total += item.weight;
+  let r = rng() * total;
+  for (const item of items) {
+    r -= item.weight;
+    if (r <= 0) return item;
+  }
+  return items[items.length - 1];
+}
+
+function modalPrediction(candidates) {
+  const bins = new Map();
+  for (const s of candidates) {
+    const key = [
+      Math.round(s.days * 4),       // 6-hour time bins
+      Math.round(s.lat),            // ~1 degree spatial bins
+      Math.round(s.lon),
+      Math.round(s.depth / 25),
+      Math.round(s.mag * 2),        // 0.5 magnitude bins
+    ].join('|');
+    if (!bins.has(key)) bins.set(key, []);
+    bins.get(key).push(s);
+  }
+  let group = candidates;
+  for (const g of bins.values()) if (g.length > group.length || group === candidates) group = g;
+  const avg = f => group.reduce((sum, s) => sum + f(s), 0) / group.length;
+  const placeCounts = new Map();
+  for (const s of group) placeCounts.set(s.place, (placeCounts.get(s.place) || 0) + 1);
+  let place = group[0].place, n = -1;
+  for (const [p, c] of placeCounts) if (c > n) { place = p; n = c; }
+  const mag = avg(s => s.mag);
+  const depth = avg(s => s.depth);
+  return {
+    lat: avg(s => s.lat),
+    lon: avg(s => s.lon),
+    depth,
+    mag,
+    days: avg(s => s.days),
+    tFrac: avg(s => s.tFrac),
+    place,
+    intensity: estimateIntensity(mag, Math.max(1, depth)),
+  };
+}
+
+export function sampleCatalogInformedAftershocks(cluster, fit, count, catalog) {
+  const seedBase = hashString(`${cluster.mainshock?.id || ''}:${cluster.mainshock?.time || 0}:${fit.t0}:${fit.T.toFixed(2)}:${count}`);
+  const scenarios = [];
+  for (let i = 0; i < MONTE_CARLO_RUNS; i++) {
+    scenarios.push(sampleCatalogInformedScenario(cluster, fit, count, catalog, seededRandom(seedBase + i)));
+  }
+  const maxLen = Math.max(0, ...scenarios.map(s => s.length));
+  const out = [];
+  for (let i = 0; i < maxLen; i++) {
+    const candidates = scenarios.map(s => s[i]).filter(Boolean);
+    if (candidates.length) out.push(modalPrediction(candidates));
+  }
+  return out.sort((a, b) => a.days - b.days);
 }
 
 // Fit the Omori–Utsu parameters to one cluster's aftershock sequence.
