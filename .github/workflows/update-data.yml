@@ -21,6 +21,9 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Let a running deploy finish rather than cancelling it.
 concurrency:
   group: pages
@@ -39,7 +42,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Fetch latest USGS snapshot
         run: node scripts/fetch-quakes.mjs
