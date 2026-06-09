@@ -96,8 +96,13 @@ function fmtUtc(ms) {
 // Human-friendly duration for the "when" forecast (hours / days / months).
 function fmtDur(days) {
   if (!isFinite(days)) return 'n/a';
-  const h = days * 24;
-  if (h < 48) return `${h.toFixed(h < 10 ? 1 : 0)} h`;
+  const minutes = Math.round(days * 24 * 60);
+  if (minutes < 60) return `${Math.max(1, minutes)} min`;
+  if (minutes < 48 * 60) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m ? `${h} h ${m} min` : `${h} h`;
+  }
   if (days < 60) return `${days.toFixed(days < 10 ? 1 : 0)} d`;
   return `${(days / 30.44).toFixed(1)} mo`;
 }
@@ -111,7 +116,50 @@ function fmtErr(q) {
   return `<br><span style="opacity:0.7">location ${parts.join(' · ')}</span>`;
 }
 
+function fmtCount(n) {
+  if (!isFinite(n)) return 'n/a';
+  if (n < 0.05) return '<0.1';
+  if (n < 10) return n.toFixed(1);
+  return String(Math.round(n));
+}
+
+function fmt24hTimes(fit) {
+  if (!fit || !isFinite(fit.f1) || fit.f1 < 0.5) return 'none likely';
+  const times = [];
+  const expected = Math.min(5, Math.floor(fit.f1));
+  const solveDays = n => {
+    const { K, c, p, T } = fit;
+    if (!(K > 0)) return Infinity;
+    if (p === 1) return (T + c) * Math.exp(n / K) - c - T;
+    const base = Math.pow(T + c, 1 - p) + (n * (1 - p)) / K;
+    return base > 0 ? Math.pow(base, 1 / (1 - p)) - c - T : Infinity;
+  };
+  for (let i = 1; i <= expected; i++) {
+    const days = solveDays(i);
+    if (days > 0 && days <= 1) times.push(fmtDur(days));
+  }
+  if (!times.length && fit.tau <= 1) times.push(fmtDur(fit.tau));
+  if (!times.length) return 'none likely';
+  const more = Math.max(0, Math.floor(fit.f1) - times.length);
+  return more ? `${times.join(', ')} +${more} more` : times.join(', ');
+}
+
 function showDetail(detailEl, detailBody, xsection, q, cluster, isMainshock) {
+  detailEl.style.display = 'block';
+  // Fit the Omori model once and drive both the forecast panel and the 3D
+  // overlay (uncertainty ellipsoid + projected aftershocks + zone ring).
+  const fit = fitOmori(cluster, state.tMax || Date.now());
+  showSelection(q, cluster, fit, state.allQuakes);
+  const xcap = document.getElementById('xsection-cap');
+
+  if (!state.fullDetailMode) {
+    detailBody.innerHTML = `<b>M ${q.mag.toFixed(1)}</b> — ${q.place}`;
+    xsection.style.display = 'none';
+    if (xcap) xcap.style.display = 'none';
+    showForecast(fit, true);
+    return;
+  }
+
   detailBody.innerHTML =
     `<b>M ${q.mag.toFixed(1)}</b> — ${q.place}<br>` +
     `depth <b>${q.depth.toFixed(1)} km</b> · ${fmtUtc(q.time)} UTC<br>` +
@@ -119,34 +167,54 @@ function showDetail(detailEl, detailBody, xsection, q, cluster, isMainshock) {
     (isMainshock ? ' · <span style="color:#ffd24a;">mainshock</span>' : '') +
     (cluster.noise ? ' · isolated (noise)' : '') + '</small>' +
     fmtErr(q);
-  detailEl.style.display = 'block';
+  xsection.style.display = 'block';
+  if (xcap) xcap.style.display = 'block';
   drawCrossSection(xsection, cluster.items, q);
-  // Fit the Omori model once and drive both the forecast panel and the 3D
-  // overlay (uncertainty ellipsoid + projected aftershocks + zone ring).
-  const fit = fitOmori(cluster, state.tMax || Date.now());
-  showSelection(q, cluster, fit, state.allQuakes);
-  showForecast(fit);
+  showForecast(fit, false);
 }
 
 // Render the forecast text + cumulative chart from a precomputed Omori fit.
 // Hidden for clusters too small to fit.
-function showForecast(fit) {
+function showForecast(fit, compact = false) {
   const fc = document.getElementById('forecast');
   const cap = document.getElementById('aftershock-cap');
   const txt = document.getElementById('forecast-text');
   const canvas = document.getElementById('aftershock');
-  if (!fit.ok) { fc.style.display = 'none'; return; }
+  if (!fit.ok) {
+    if (!compact) { fc.style.display = 'none'; return; }
+    fc.style.display = 'block';
+    txt.innerHTML = `<span style="opacity:.7">forecast:</span> not enough recent sequence data`;
+    canvas.style.display = 'none';
+    cap.style.display = 'none';
+    return;
+  }
   fc.style.display = 'block';
+  canvas.style.display = compact ? 'none' : 'block';
+  cap.style.display = compact ? 'none' : 'block';
   cap.textContent = `aftershock rate · Omori–Utsu p=${fit.p.toFixed(2)} c=${fit.c.toFixed(2)}d`;
   const w = fit.where;
   const intensity = fit.intensity.projected || fit.intensity.observed;
   const intensitySource = fit.intensity.projected ? 'projected samples' : 'observed cluster events';
   const pct = x => x * 100 >= 99.5 ? '>99' : Math.round(x * 100);
+  if (compact) {
+    txt.innerHTML =
+      `<span style="opacity:.7">next:</span> M3+ in ~<b>${fmtDur(fit.tau)}</b><br>` +
+      `<span style="opacity:.7">24h predicted times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
+      `<span style="opacity:.7">how likely:</span> ` +
+      `<b>${pct(fit.p1)}%</b> / ${fmtCount(fit.f1)} in 24h · ` +
+      `<b>${pct(fit.p7)}%</b> / ${fmtCount(fit.f7)} in 7d · ` +
+      `<b>${pct(fit.p30)}%</b> / ${fmtCount(fit.f30)} in 30d ` +
+      `<span style="opacity:.6">(≥1 more M3+)</span>`;
+    return;
+  }
   txt.innerHTML =
     `<b>${fit.n}</b> aftershocks since the M${fit.mainMag.toFixed(1)} mainshock<br>` +
     `<span style="opacity:.7">when:</span> next M3+ in ~<b>${fmtDur(fit.tau)}</b><br>` +
+    `<span style="opacity:.7">24h predicted times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
     `<span style="opacity:.7">how likely:</span> ` +
-    `<b>${pct(fit.p1)}%</b> 24h · <b>${pct(fit.p7)}%</b> 7d · <b>${pct(fit.p30)}%</b> 30d ` +
+    `<b>${pct(fit.p1)}%</b> / ${fmtCount(fit.f1)} in 24h · ` +
+    `<b>${pct(fit.p7)}%</b> / ${fmtCount(fit.f7)} in 7d · ` +
+    `<b>${pct(fit.p30)}%</b> / ${fmtCount(fit.f30)} in 30d ` +
     `<span style="opacity:.6">(≥1 more M3+)</span><br>` +
     `<span style="opacity:.7">possible intensity:</span> median ~<b>${intensity.median.text}</b> · p90 ~<b>${intensity.p90.text}</b> ` +
     `<span style="opacity:.6">from ${intensity.n} ${intensitySource} near epicentral area</span><br>` +

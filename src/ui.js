@@ -176,6 +176,9 @@ function initToggles() {
     state.waveMode = e.target.checked;
     if (!e.target.checked) clearWavefront(); // turning it off stops any running sweep
   });
+  document.getElementById('detail-toggle').addEventListener('change', e => {
+    state.fullDetailMode = e.target.checked;
+  });
 }
 
 // --- from/to time window (re-render on release; no clustering, just show/hide) ---
