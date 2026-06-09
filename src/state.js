@@ -17,6 +17,7 @@ export const state = {
   depthVisible: true,   // surface→hypocenter depth lines
   waveMode: false,      // click a quake to animate P/S seismic wavefronts
   fullDetailMode: false, // show full click popup with cluster text + charts
+  clusterSequence: null, // right-click isolation: { items, step, total } for one connected line run
 
   // Magnitude bands currently shown (floor(mag), 8 = M8+). The quake layer draws
   // a quake only if its band is in this set. All on by default.

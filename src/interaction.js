@@ -8,6 +8,9 @@ import { state } from './state.js';
 import { fitOmori, drawAftershock } from './forecast.js';
 import { startWavefront } from './wavefront.js';
 import { showSelection, clearSelection, getGhostPoints, getGhostData, getGhostCount, selectGhostPrediction, setSinglePredictionMode } from './selectionLayer.js';
+import { renderWindow } from './ui.js';
+import { gcDistKm } from './geo.js';
+import { CLUSTER_RECENT, MAX_LINK_DAYS, MAX_LINK_KM } from './config.js';
 
 const ray = new THREE.Raycaster();
 ray.params.Mesh = { threshold: 0 };
@@ -81,6 +84,19 @@ export function initInteraction() {
     clearSelection();
   });
 
+  initClusterSequenceControls();
+
+  // right-click a quake → isolate its connected line run and step through it oldest→newest
+  addEventListener('contextmenu', (e) => {
+    aim(e);
+    const hits = ray.intersectObjects(getQuakeMeshes(), false);
+    if (!hits.length) return;
+    e.preventDefault();
+    const inst = getInstance(hits[0].instanceId);
+    if (!inst) return;
+    showConnectedSequence(inst.quake, getCluster(inst.cluster));
+  });
+
   // double-click globe or quake → set the orbit pivot there
   addEventListener('dblclick', (e) => {
     aim(e);
@@ -89,13 +105,83 @@ export function initInteraction() {
   });
 }
 
+function connectedRuns(cluster) {
+  const recent = cluster.items.slice(0, CLUSTER_RECENT); // newest-first, matching drawn sequence lines
+  const maxGapMs = MAX_LINK_DAYS * 86400000;
+  const linkable = (a, b) => (a.time - b.time) <= maxGapMs && gcDistKm(a, b) <= MAX_LINK_KM;
+  const runs = [];
+  if (!recent.length) return runs;
+  let run = [recent[0]];
+  for (let i = 0; i < recent.length - 1; i++) {
+    if (linkable(recent[i], recent[i + 1])) run.push(recent[i + 1]);
+    else { runs.push(run); run = [recent[i + 1]]; }
+  }
+  runs.push(run);
+  return runs;
+}
+
+function updateClusterSequencePanel() {
+  const panel = document.getElementById('cluster-sequence');
+  const head = document.getElementById('cluster-sequence-head');
+  const info = document.getElementById('cluster-sequence-info');
+  const slider = document.getElementById('cluster-sequence-slider');
+  const val = document.getElementById('cluster-sequence-val');
+  const seq = state.clusterSequence;
+  if (!panel || !head || !info || !slider || !val || !seq) return;
+
+  const items = seq.items;
+  const q = items[Math.max(0, Math.min(items.length - 1, seq.step - 1))];
+  panel.style.display = 'block';
+  head.textContent = `Connected sequence · ${items.length} events`;
+  slider.max = String(items.length);
+  slider.value = String(seq.step);
+  val.textContent = `${seq.step}/${items.length}`;
+  info.innerHTML = q
+    ? `<b>M ${q.mag.toFixed(1)}</b> · ${fmtUtc(q.time)} UTC<br>${q.place}`
+    : 'No events';
+}
+
+function showConnectedSequence(clicked, cluster) {
+  if (!cluster || !cluster.items.length) return;
+  const run = connectedRuns(cluster).find(seq => seq.includes(clicked)) || [clicked];
+  const items = run.slice().sort((a, b) => a.time - b.time); // play oldest→newest
+  state.clusterSequence = { items, step: 1, total: items.length };
+  updateClusterSequencePanel();
+  renderWindow(state.tMin, state.tMax);
+}
+
+function initClusterSequenceControls() {
+  const slider = document.getElementById('cluster-sequence-slider');
+  const clear = document.getElementById('cluster-sequence-clear');
+  if (!slider || !clear) return;
+  slider.addEventListener('input', () => {
+    const seq = state.clusterSequence;
+    if (!seq) return;
+    seq.step = +slider.value;
+    updateClusterSequencePanel();
+    renderWindow(state.tMin, state.tMax);
+  });
+  clear.addEventListener('click', () => {
+    state.clusterSequence = null;
+    document.getElementById('cluster-sequence').style.display = 'none';
+    renderWindow(state.tMin, state.tMax);
+  });
+}
+
 function fmtUtc(ms) {
   return new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
 }
 
+function fmtLocal(ms) {
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+  }).format(new Date(ms));
+}
+
 function fmtPredUtc(days) {
   if (!isFinite(days) || !state.tMax) return 'date n/a';
-  return fmtUtc(state.tMax + days * 86400000) + ' UTC';
+  return fmtLocal(state.tMax + days * 86400000);
 }
 
 // Human-friendly duration for the "when" forecast (hours / days / months).

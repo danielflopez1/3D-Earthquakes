@@ -90,6 +90,16 @@ html, body { margin: 0; height: 100%; background: #05070d; color: #d6e1ff; font-
 #prediction-single-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; cursor: pointer; color: #9fb3d9; }
 #prediction-slider { width: 100%; }
 
+#cluster-sequence {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  padding: 8px 12px; background: rgba(10,16,28,0.94); border: 1px solid #2a4070;
+  border-radius: 8px; font-size: 12px; width: min(360px, calc(100vw - 24px));
+  box-sizing: border-box; z-index: 3;
+}
+#cluster-sequence-head { color: #8fb6ff; font-weight: 600; margin-bottom: 4px; }
+#cluster-sequence-info { opacity: 0.85; margin-bottom: 6px; }
+#cluster-sequence .btn { margin-top: 6px; width: 100%; }
+
 @media (max-width: 640px) {
   #detail {
     top: auto;
@@ -108,4 +118,5 @@ html, body { margin: 0; height: 100%; background: #05070d; color: #d6e1ff; font-
   #prediction-timeline-label { margin-bottom: 3px; }
   #prediction-single-row { margin-bottom: 2px; }
   #xsection, #aftershock { width: 100%; height: auto; }
+  #cluster-sequence { bottom: 8px; font-size: 11px; }
 }

@@ -170,6 +170,8 @@ export function setCatalog(quakes, seedLabels) {
 export function applyWindow(fromT, toT) {
   if (!quakePoints) return null;
   const t0 = performance.now();
+  const seq = state.clusterSequence;
+  const seqVisible = seq ? new Set(seq.items.slice(0, seq.step)) : null;
 
   disposeObj(depthLines); disposeObj(seqLines); disposeObj(arrowLines);
   depthLines = seqLines = arrowLines = null;
@@ -178,13 +180,18 @@ export function applyWindow(fromT, toT) {
   // A quake is drawn only if it's inside the time window AND its magnitude band
   // is checked on (state.visMags). visMags absent => show everything.
   const mags = state.visMags;
-  const visible = q => q.time >= fromT && q.time <= toT && (!mags || mags.has(magBand(q.mag)));
+  const visible = (q, cluster, ci) => {
+    if (seq) {
+      return seqVisible ? seqVisible.has(q) : false;
+    }
+    return q.time >= fromT && q.time <= toT && (!mags || mags.has(magBand(q.mag)));
+  };
 
   // recency in [0..1] over the VISIBLE set: 0 = newest, 1 = oldest. Window-
   // relative so the newest visible quake always reads red as you scrub.
   let vNewest = -Infinity, vOldest = Infinity, visTotal = 0;
-  for (const c of clusters) for (const q of c.items) {
-    if (!visible(q)) continue;
+  for (let ci = 0; ci < clusters.length; ci++) for (const q of clusters[ci].items) {
+    if (!visible(q, clusters[ci], ci)) continue;
     if (q.time > vNewest) vNewest = q.time;
     if (q.time < vOldest) vOldest = q.time;
     visTotal++;
@@ -205,8 +212,8 @@ export function applyWindow(fromT, toT) {
   clusters.forEach((cluster, ci) => {
     // visible members of this cluster (items already sorted newest-first)
     const vis = cluster.items.length === 1
-      ? (visible(cluster.items[0]) ? cluster.items : null)
-      : cluster.items.filter(visible);
+      ? (visible(cluster.items[0], cluster, ci) ? cluster.items : null)
+      : cluster.items.filter(q => visible(q, cluster, ci));
     if (!vis || !vis.length) return;
 
     if (cluster.noise) visibleNoise += vis.length; else visibleClusters++;
