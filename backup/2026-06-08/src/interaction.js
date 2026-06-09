@@ -4,14 +4,9 @@ import * as THREE from 'three';
 import { camera, earth, setFocus } from './scene.js';
 import { getQuakeMeshes, getInstance, getCluster } from './quakeLayer.js';
 import { timeColor } from './colors.js';
-import { state } from './state.js';
-import { fitOmori, drawAftershock } from './forecast.js';
-import { startWavefront } from './wavefront.js';
-import { showSelection, clearSelection, getGhostPoints, getGhostData } from './selectionLayer.js';
 
 const ray = new THREE.Raycaster();
 ray.params.Mesh = { threshold: 0 };
-ray.params.Points = { threshold: 0.012 }; // ghost-aftershock pick radius (scene units)
 const mouse = new THREE.Vector2();
 
 // Translate a mouse event into normalized device coords and aim the raycaster.
@@ -39,28 +34,10 @@ export function initInteraction() {
       tooltip.style.top = e.clientY + 'px';
       tooltip.innerHTML =
         `<b>M ${q.mag.toFixed(1)}</b> — ${q.place}<br>` +
-        `depth ${q.depth.toFixed(1)} km · ${fmtUtc(q.time)} UTC` + fmtErr(q);
-      return;
+        `depth ${q.depth.toFixed(1)} km · ${fmtUtc(q.time)} UTC`;
+    } else {
+      tooltip.style.display = 'none';
     }
-    // projected aftershock hover (only when a selection is active)
-    const ghosts = getGhostPoints();
-    if (ghosts) {
-      const gh = ray.intersectObject(ghosts, true);
-      if (gh.length) {
-        const idx = gh[0].object.userData.ghostIndices?.[gh[0].index] ?? gh[0].index;
-        const g = getGhostData(idx);
-        tooltip.style.display = 'block';
-        tooltip.style.left = e.clientX + 'px';
-        tooltip.style.top = e.clientY + 'px';
-        tooltip.innerHTML =
-          `<b>projected aftershock</b><br>` +
-          `${g.place || 'near the epicenter'}<br>` +
-          `<span style="opacity:.75">in ~${fmtDur(g.days)} · M${g.mag.toFixed(1)} proxy · ${g.depth.toFixed(0)} km deep</span><br>` +
-          `<span style="opacity:.75">possible shaking near epicenter: ~${g.intensity.text}</span>`;
-        return;
-      }
-    }
-    tooltip.style.display = 'none';
   });
 
   // click (not drag) → detail + cross-section
@@ -73,12 +50,10 @@ export function initInteraction() {
     if (!hits.length) return;
     const inst = getInstance(hits[0].instanceId);
     if (!inst) return;
-    if (state.waveMode) startWavefront(inst.quake);
     showDetail(detailEl, detailBody, xsection, inst.quake, getCluster(inst.cluster), inst.isMainshock);
   });
   document.getElementById('detail-close').addEventListener('click', () => {
     detailEl.style.display = 'none';
-    clearSelection();
   });
 
   // double-click globe or quake → set the orbit pivot there
@@ -93,66 +68,15 @@ function fmtUtc(ms) {
   return new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
 }
 
-// Human-friendly duration for the "when" forecast (hours / days / months).
-function fmtDur(days) {
-  if (!isFinite(days)) return 'n/a';
-  const h = days * 24;
-  if (h < 48) return `${h.toFixed(h < 10 ? 1 : 0)} h`;
-  if (days < 60) return `${days.toFixed(days < 10 ? 1 : 0)} d`;
-  return `${(days / 30.44).toFixed(1)} mo`;
-}
-
-// Location-uncertainty suffix, e.g. " · ±3.2 km horiz · ±1.8 km depth".
-function fmtErr(q) {
-  if (q.hErr == null && q.dErr == null) return '';
-  const parts = [];
-  if (q.hErr != null) parts.push(`±${q.hErr.toFixed(1)} km horiz`);
-  if (q.dErr != null) parts.push(`±${q.dErr.toFixed(1)} km depth`);
-  return `<br><span style="opacity:0.7">location ${parts.join(' · ')}</span>`;
-}
-
 function showDetail(detailEl, detailBody, xsection, q, cluster, isMainshock) {
   detailBody.innerHTML =
     `<b>M ${q.mag.toFixed(1)}</b> — ${q.place}<br>` +
     `depth <b>${q.depth.toFixed(1)} km</b> · ${fmtUtc(q.time)} UTC<br>` +
     `<small style="opacity:0.85">cluster: ${cluster.items.length} events` +
     (isMainshock ? ' · <span style="color:#ffd24a;">mainshock</span>' : '') +
-    (cluster.noise ? ' · isolated (noise)' : '') + '</small>' +
-    fmtErr(q);
+    (cluster.noise ? ' · isolated (noise)' : '') + '</small>';
   detailEl.style.display = 'block';
   drawCrossSection(xsection, cluster.items, q);
-  // Fit the Omori model once and drive both the forecast panel and the 3D
-  // overlay (uncertainty ellipsoid + projected aftershocks + zone ring).
-  const fit = fitOmori(cluster, state.tMax || Date.now());
-  showSelection(q, cluster, fit, state.allQuakes);
-  showForecast(fit);
-}
-
-// Render the forecast text + cumulative chart from a precomputed Omori fit.
-// Hidden for clusters too small to fit.
-function showForecast(fit) {
-  const fc = document.getElementById('forecast');
-  const cap = document.getElementById('aftershock-cap');
-  const txt = document.getElementById('forecast-text');
-  const canvas = document.getElementById('aftershock');
-  if (!fit.ok) { fc.style.display = 'none'; return; }
-  fc.style.display = 'block';
-  cap.textContent = `aftershock rate · Omori–Utsu p=${fit.p.toFixed(2)} c=${fit.c.toFixed(2)}d`;
-  const w = fit.where;
-  const intensity = fit.intensity.projected || fit.intensity.observed;
-  const intensitySource = fit.intensity.projected ? 'projected samples' : 'observed cluster events';
-  const pct = x => x * 100 >= 99.5 ? '>99' : Math.round(x * 100);
-  txt.innerHTML =
-    `<b>${fit.n}</b> aftershocks since the M${fit.mainMag.toFixed(1)} mainshock<br>` +
-    `<span style="opacity:.7">when:</span> next M3+ in ~<b>${fmtDur(fit.tau)}</b><br>` +
-    `<span style="opacity:.7">how likely:</span> ` +
-    `<b>${pct(fit.p1)}%</b> 24h · <b>${pct(fit.p7)}%</b> 7d · <b>${pct(fit.p30)}%</b> 30d ` +
-    `<span style="opacity:.6">(≥1 more M3+)</span><br>` +
-    `<span style="opacity:.7">possible intensity:</span> median ~<b>${intensity.median.text}</b> · p90 ~<b>${intensity.p90.text}</b> ` +
-    `<span style="opacity:.6">from ${intensity.n} ${intensitySource} near epicentral area</span><br>` +
-    `<span style="opacity:.7">where:</span> within ~<b>${w.dist90.toFixed(0)} km</b> of the epicenter · ` +
-    `${w.trend}-trending · ${w.depthMin.toFixed(0)}–${w.depthMax.toFixed(0)} km deep`;
-  drawAftershock(canvas, fit);
 }
 
 // Project a cluster onto its principal horizontal axis and plot depth vs. that
@@ -193,18 +117,6 @@ function drawCrossSection(canvas, items, clicked) {
   ctx.fillText('0', 6, padT + 8);
   ctx.fillText(dmax.toFixed(0) + 'km', 2, H - padB);
   ctx.fillText(xspan.toFixed(0) + ' km along strike', padL + 4, H - 6);
-
-  // location-uncertainty whiskers: ±horizontalError along strike, ±depthError in
-  // depth — turns the scatter into an error-bar cloud (faint, behind the dots).
-  ctx.strokeStyle = 'rgba(143,182,255,0.28)'; ctx.lineWidth = 1;
-  for (const p of pts) {
-    const h = p.q.hErr, d = p.q.dErr;
-    if (h == null && d == null) continue;
-    ctx.beginPath();
-    if (h != null) { ctx.moveTo(sx(p.x - h), sy(p.d)); ctx.lineTo(sx(p.x + h), sy(p.d)); }
-    if (d != null) { ctx.moveTo(sx(p.x), sy(Math.max(0, p.d - d))); ctx.lineTo(sx(p.x), sy(p.d + d)); }
-    ctx.stroke();
-  }
 
   // points, colored by recency within this cluster (newest-first)
   const newest = items[0].time, oldest = items[items.length - 1].time;

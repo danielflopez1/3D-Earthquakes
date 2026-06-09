@@ -15,7 +15,7 @@
 </div>
 
 <div id="legend">
-  sphere size = magnitude · depth = distance below surface · quake color = recency (red→green) · lines = local sequence (blue = recent → purple = older) · click a quake for its cross-section, location-uncertainty wireframe & projected aftershocks (ghost dots, soon = red → later = green)
+  sphere size = magnitude · depth = distance below surface · quake color = recency (red→green) · lines = local sequence (blue = recent → purple = older) · click a quake for its cross-section
 </div>
 
 <div id="time-panel">
@@ -52,8 +52,8 @@
   </div>
   <div class="slider-row">
     <span>Quakes Size</span>
-    <input id="size-slider" type="range" min="1" max="100" value="20" step="1" />
-    <span id="size-val">20</span>
+    <input id="size-slider" type="range" min="1" max="100" value="50" step="1" />
+    <span id="size-val">50</span>
   </div>
   <div class="slider-row">
     <span>Angle</span>
@@ -72,10 +72,6 @@
     <input id="arrow-toggle" type="checkbox" />
     <span style="width:auto;">Direction arrows</span>
   </label>
-  <label class="slider-row" style="cursor:pointer;">
-    <input id="wave-toggle" type="checkbox" />
-    <span style="width:auto;">Seismic waves <span style="opacity:0.6;">(click a quake)</span></span>
-  </label>
   <div class="slider-row" style="align-items:flex-start;">
     <span>Magnitude</span>
     <div id="mag-filters" style="display:flex; flex-wrap:wrap; gap:4px 10px;">
@@ -93,12 +89,7 @@
   <span class="close" id="detail-close">✕</span>
   <div id="detail-body"></div>
   <canvas id="xsection" width="276" height="150"></canvas>
-  <div id="xsection-cap">cluster cross-section · depth vs. along-strike distance · faint bars = location uncertainty</div>
-  <div id="forecast" style="display:none;">
-    <div id="forecast-text" style="margin-top:8px;"></div>
-    <canvas id="aftershock" width="276" height="120"></canvas>
-    <div id="aftershock-cap" style="opacity:0.75; margin-top:4px; font-size:11px;">aftershock rate · Omori–Utsu fit &amp; 7-day forecast</div>
-  </div>
+  <div id="xsection-cap">cluster cross-section · depth vs. along-strike distance</div>
 </div>
 
 <div id="tooltip"></div>

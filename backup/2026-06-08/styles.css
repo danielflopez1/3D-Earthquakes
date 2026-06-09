@@ -81,6 +81,5 @@ html, body { margin: 0; height: 100%; background: #05070d; color: #d6e1ff; font-
   font-size: 14px; line-height: 1;
 }
 #detail .close:hover { color: #cfe0ff; }
-#xsection, #aftershock { display: block; margin-top: 8px; border: 1px solid #1f3050; border-radius: 4px; background: #070b14; }
+#xsection { display: block; margin-top: 8px; border: 1px solid #1f3050; border-radius: 4px; background: #070b14; }
 #xsection-cap { opacity: 0.75; margin-top: 4px; font-size: 11px; }
-#forecast-text { font-size: 12px; }

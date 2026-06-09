@@ -11,11 +11,10 @@ export const state = {
   tMax: 0,       // newest loaded event time (ms)
 
   // --- render flags (set by the UI, read by the quake layer) ---
-  sizeMult: 0.4,        // quake-size slider: 20 on load => 40% of baseline size
+  sizeMult: 1.0,        // quake-size slider: 50 on the slider => 1.0 => baseline size
   mainshockMode: false, // emphasize each cluster's largest event
   arrowMode: false,     // show propagation-direction arrows
   depthVisible: true,   // surface→hypocenter depth lines
-  waveMode: false,      // click a quake to animate P/S seismic wavefronts
 
   // Magnitude bands currently shown (floor(mag), 8 = M8+). The quake layer draws
   // a quake only if its band is in this set. All on by default.

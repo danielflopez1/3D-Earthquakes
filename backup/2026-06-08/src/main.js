@@ -5,12 +5,10 @@ import { loadQuakes, persistClusterLabels } from './usgs.js';
 import { setCatalog } from './quakeLayer.js';
 import { initInteraction } from './interaction.js';
 import { initUI, onDataLoaded, renderWindow } from './ui.js';
-import { loadForecastModel } from './forecast.js';
 
 initUI();
 initInteraction();
 startRenderLoop();
-loadForecastModel();
 
 // Render one batch from the progressive loader: re-cluster the catalog we have so
 // far (reusing/patching saved labels when possible), then render the full window.

@@ -47,7 +47,7 @@ export const CLUSTER_RECENT = 100;            // connect up to this many most-re
 // catalog and its cluster labels are two records in one key/value store.
 export const IDB_NAME = 'eq_db';
 export const IDB_STORE = 'kv';
-export const IDB_CACHE_KEY = 'catalog_v4';  // { newest, quakes } — bump to refetch when the parsed quake shape changes
+export const IDB_CACHE_KEY = 'catalog_v3';  // { newest, quakes }
 export const IDB_LABELS_KEY = 'clusters_v3'; // { sig, labels } — bump on any clustering-param change to discard stale labels
 export const CACHE_TTL_MS = YEARS * 365.25 * 24 * 3600 * 1000;
 

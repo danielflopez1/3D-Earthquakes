@@ -1,0 +1,62 @@
+name: Update earthquake data & deploy
+
+# Rebuilds the USGS snapshot and redeploys the site to GitHub Pages:
+#   - hourly (keeps the baked data/quakes.csv fresh)
+#   - on every push to main (so code changes ship too)
+#   - manually from the Actions tab
+#
+# Pages "Source" must be set to "GitHub Actions" (Settings -> Pages).
+# The data file is generated here, not committed, so the repo stays code-only.
+
+on:
+  schedule:
+    - cron: '17 * * * *'   # hourly at :17 (off the hour to dodge cron congestion)
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Permissions the Pages deploy needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch latest USGS snapshot
+        run: node scripts/fetch-quakes.mjs
+
+      - name: Assemble static site
+        run: |
+          mkdir -p _site
+          cp -r index.html styles.css src data _site/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

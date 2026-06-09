@@ -37,9 +37,7 @@ export function parseUsgsCsv(text) {
   const header = parseCsvRow(lines[0]);
   const ix = name => header.indexOf(name);
   const iT = ix('time'), iLa = ix('latitude'), iLo = ix('longitude'),
-        iD = ix('depth'), iM = ix('mag'), iI = ix('id'), iP = ix('place'),
-        iHE = ix('horizontalError'), iDE = ix('depthError');
-  const num = (f, i) => (i >= 0 && isFinite(+f[i]) && f[i] !== '') ? +f[i] : null;
+        iD = ix('depth'), iM = ix('mag'), iI = ix('id'), iP = ix('place');
   const out = [];
   for (let i = 1; i < lines.length; i++) {
     const f = parseCsvRow(lines[i]);
@@ -53,8 +51,6 @@ export function parseUsgsCsv(text) {
       time: Date.parse(f[iT]),
       place: f[iP] || 'unknown',
       id: f[iI],
-      hErr: num(f, iHE), // horizontal location uncertainty, km (null if absent)
-      dErr: num(f, iDE), // depth uncertainty, km
     });
   }
   return out;

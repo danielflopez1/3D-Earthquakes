@@ -3,7 +3,6 @@
 import { state } from './state.js';
 import { earthMat, orbitAroundTarget } from './scene.js';
 import { applyWindow, applyVisualModes, setDepthVisible, setArrowVisible } from './quakeLayer.js';
-import { clearWavefront } from './wavefront.js';
 import { MIN_MAG, YEARS } from './config.js';
 
 // DOM references, populated in initUI().
@@ -172,10 +171,6 @@ function initToggles() {
     applyVisualModes();
   });
   document.getElementById('arrow-toggle').addEventListener('change', e => setArrowVisible(e.target.checked));
-  document.getElementById('wave-toggle').addEventListener('change', e => {
-    state.waveMode = e.target.checked;
-    if (!e.target.checked) clearWavefront(); // turning it off stops any running sweep
-  });
 }
 
 // --- from/to time window (re-render on release; no clustering, just show/hide) ---
