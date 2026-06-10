@@ -179,6 +179,12 @@ function fmtLocal(ms) {
   }).format(new Date(ms));
 }
 
+function fmtLocalTime(ms) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+  }).format(new Date(ms));
+}
+
 function fmtPredUtc(days) {
   if (!isFinite(days) || !state.tMax) return 'date n/a';
   return fmtLocal(state.tMax + days * 86400000);
@@ -227,9 +233,9 @@ function fmt24hTimes(fit) {
   };
   for (let i = 1; i <= expected; i++) {
     const days = solveDays(i);
-    if (days > 0 && days <= 1) times.push(fmtDur(days));
+    if (days > 0 && days <= 1) times.push(fmtLocalTime(state.tMax + days * 86400000));
   }
-  if (!times.length && fit.tau <= 1) times.push(fmtDur(fit.tau));
+  if (!times.length && fit.tau <= 1) times.push(fmtLocalTime(state.tMax + fit.tau * 86400000));
   if (!times.length) return 'none likely';
   const more = Math.max(0, Math.floor(fit.f1) - times.length);
   return more ? `${times.join(', ')} +${more} more` : times.join(', ');
@@ -332,7 +338,7 @@ function showForecast(fit, compact = false) {
   if (compact) {
     txt.innerHTML =
       `<span style="opacity:.7">next:</span> M3+ in ~<b>${fmtDur(fit.tau)}</b><br>` +
-      `<span style="opacity:.7">24h times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
+      `<span style="opacity:.7">24h local times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
       `<span style="opacity:.7">odds/count:</span> ` +
       `24h <b>${pct(fit.p1)}%</b>/${fmtCount(fit.f1)} · ` +
       `7d <b>${pct(fit.p7)}%</b>/${fmtCount(fit.f7)} · ` +
@@ -344,7 +350,7 @@ function showForecast(fit, compact = false) {
   txt.innerHTML =
     `<b>${fit.n}</b> aftershocks since the M${fit.mainMag.toFixed(1)} mainshock<br>` +
     `<span style="opacity:.7">when:</span> next M3+ in ~<b>${fmtDur(fit.tau)}</b><br>` +
-    `<span style="opacity:.7">24h predicted times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
+    `<span style="opacity:.7">24h predicted local times:</span> <b>${fmt24hTimes(fit)}</b><br>` +
     `<span style="opacity:.7">how likely:</span> ` +
     `<b>${pct(fit.p1)}%</b> / ${fmtCount(fit.f1)} in 24h · ` +
     `<b>${pct(fit.p7)}%</b> / ${fmtCount(fit.f7)} in 7d · ` +
