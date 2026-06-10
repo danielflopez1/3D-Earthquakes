@@ -186,8 +186,14 @@ function fmtLocalTime(ms) {
 }
 
 function fmtPredUtc(days) {
-  if (!isFinite(days) || !state.tMax) return 'date n/a';
-  return fmtLocal(state.tMax + days * 86400000);
+  if (!isFinite(days)) return 'date n/a';
+  return fmtLocal(Date.now() + days * 86400000);
+}
+
+function fmtFromNow(days) {
+  if (!isFinite(days)) return 'n/a';
+  if (days <= 0) return 'passed';
+  return fmtDur(days);
 }
 
 // Human-friendly duration for the "when" forecast (hours / days / months).
@@ -233,9 +239,9 @@ function fmt24hTimes(fit) {
   };
   for (let i = 1; i <= expected; i++) {
     const days = solveDays(i);
-    if (days > 0 && days <= 1) times.push(fmtLocalTime(state.tMax + days * 86400000));
+    if (days > 0 && days <= 1) times.push(fmtLocalTime(Date.now() + days * 86400000));
   }
-  if (!times.length && fit.tau <= 1) times.push(fmtLocalTime(state.tMax + fit.tau * 86400000));
+  if (!times.length && fit.tau <= 1) times.push(fmtLocalTime(Date.now() + fit.tau * 86400000));
   if (!times.length) return 'none likely';
   const more = Math.max(0, Math.floor(fit.f1) - times.length);
   return more ? `${times.join(', ')} +${more} more` : times.join(', ');
@@ -252,7 +258,7 @@ function updatePredictionTimeline(index) {
   selectGhostPrediction(i);
   label.innerHTML =
     `<b>${i + 1}/${count}</b> · ${fmtPredUtc(g.days)}<br>` +
-    `in ~${fmtDur(g.days)} · M${g.mag.toFixed(1)} · ${g.depth.toFixed(0)} km · ~${g.intensity.text}`;
+    `in ~${fmtFromNow(g.days)} · M${g.mag.toFixed(1)} · ${g.depth.toFixed(0)} km · ~${g.intensity.text}`;
 }
 
 function showPredictionTimeline() {
